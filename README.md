@@ -362,8 +362,3 @@ The client is responsible for making sure there is enough allowance for fungible
 
 One way to handle this is for the client to have logic to increase the allowance if it receives the response indicating a duplicate request has been sent. Another way might be to increase the allowance before each request. Again, this decision is up to the owner of the client contract.
 
-## Outstanding work
-
-There are various issues opened in this repository. As mentioned early in this document, this is an ever-growing repository. Soon we'll implement using the expiration to allow the client contract to cancel their request and receive the tokens back if it's within the window. There's also work in terms of setting up the [PreCoordinator](https://github.com/smartcontractkit/chainlink/blob/develop/evm-contracts/src/v0.5/PreCoordinator.sol) and whatnot.
-
-Contributors are welcome to get involved!
