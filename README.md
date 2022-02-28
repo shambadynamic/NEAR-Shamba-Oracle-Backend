@@ -1,52 +1,50 @@
-After the user enters all the details, and submits the form, this is the workflow:
+# NEAR-Shamba-Oracle
 
-    1. The form-submit calls an API with the request body as the form details that the user has entered, in the format as shown below:
+This repository serves to demonstrate how a smart contract on NEAR can access off-chain data using an incentivized oracle solution with fungible tokens as payments.
 
-        Example of that API call is:
+There are a number of subdirectories in the project that represent the moving pieces of a simple oracle system. 
 
-            URL: http://165.232.134.108:4000/
+- Client Contract (The contract that wants a token price from an off-chain API)
+- Oracle Contract (An on-chain smart contract that accepts a fungible token payment and stores a request to be processed off-chain)
+- Oracle Node (An off-chain machine continuously polling the Oracle Contract on NEAR, and fulfilling requests) 
+    - **Note**: code for the Oracle Node is not included in this repository, to interact with that you can use the GUI tool described below.
+- Fungible Token (The token paid by the Client Contract to the Oracle Contract in exchange for getting an answer to the Client's request)
 
-            Method: POST
+![Chainlink and NEAR diagram](assets/chainlink-diagram.png)
 
-            REQUEST Body:
+## Get NEAR-CLI, Rust, and set up testnet accounts
 
-            {
-                "searchValue": "agg_max",
-                "datasetCodeValue": "COPERNICUS/S2_SR",
-                "selectedBandValue": "NDVI",
-                "startDateValue": "2021-09-01",
-                "endDateValue": "2021-09-10",
-                "imageScaleValue": 250,
-                "geometryValue": {"type": "FeatureCollection", "features": [{ "type": "Feature", "properties": {}, "geometry": { "type": "Polygon", "coordinates": [[[19.51171875, 4.214943141390651], [18.28125, -4.740675384778361], [26.894531249999996, -4.565473550710278], [27.24609375, 1.2303741774326145], [19.51171875, 4.214943141390651]]]}}]}
-            }
+We'll be using [NEAR CLI](https://docs.near.org/docs/development/near-cli), a command line tool that makes things simpler. Please have [NodeJS version 12 or greater](https://nodejs.org/en/download/package-manager/). Then install globally with:
 
+```bash
+npm install -g near-cli
+```
 
-            RESPONSE Body:
+These smart contracts are written in Rust. Please follow these directions to get Rust going on your local machine.
 
-            {
-                "result_type": "agg_max",
-                "result": "0.924997091293335",
-                "transactions": [
-                    "https://explorer.testnet.near.org/transactions/2yuzAgXhT6SzgeA7Pbea47Tf88BfaTMoC2EMjwXD1hbU",
-                    "https://explorer.testnet.near.org/transactions/tMvtmZifqkafzRYhAjgVsjGi4xcRS4Li7aQNbRbcVeo"
-                ]
-            }
+Install Rustup:
 
-    2. Then, that API initiates a call to the "Client" NEAR contract requesting the "agg_value" (in the example shown above, it's "agg_max"). The Client Contract has an existing balance of 50 fungible tokens (FT) that it can access to pay for requests. 
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
-    3. With the above request being successful, the user gets a transaction url as the first transaction (in the above example, it's https://explorer.testnet.near.org/transactions/2yuzAgXhT6SzgeA7Pbea47Tf88BfaTMoC2EMjwXD1hbU i.e., the first element of the "transactions" array in the RESPONSE body of the API).
+([Official documentation](https://www.rust-lang.org/tools/install))
 
-    4. Along with that, 10 fungible tokens are sent to the on-chain Oracle Contract along with the user's request.
+Follow the directions which includes running:
 
-    5. Then, the Oracle-Node that is being created using Chainlink, finds requests by consistently polling the on-chain Oracle Contract. When a new request is found, the Oracle-Node begins processing the request. The FT payment is locked until the Client Contract receives a successfully completed request.
+```bash
+source $HOME/.cargo/env
+```
 
-    6. With the original request in hand, the off-chain oracle node interfaces with the Shamba GeoAPI and retrieves the requested "agg_value" (in the example shown above, it's "agg_max").
+Add wasm target to your toolchain:
 
-    7. The off-chain Oracle-Node passes the "agg_value" (i.e., "agg_max" in the above example) from the API to the on-chain Oracle Contract.
+```bash
+rustup target add wasm32-unknown-unknown
+```
 
-    8. Hence, the on-chain Oracle Contract fulfills the original request by providing the "agg_value" (i.e., "agg_max" in the above example) from the API to the Client Contract. 
+([Info on wasm32-unknown-unknown](https://doc.rust-lang.org/edition-guide/rust-2018/platform-and-target-support/webassembly-support.html))
 
-    9. With this fulfilled request, the initial FT payment is now unlocked and can be accessed by the owner of the Oracle Contract / Oracle Node. Both the on-chain Oracle Contract and off-chain Oracle Node are typically owned by the same party.
+Rust is now ready on your machine.
 
 Next, create a NEAR testnet account with [Wallet](https://wallet.testnet.near.org).
 
@@ -207,6 +205,9 @@ You can use the GUI running on http://contracts-shamba.herokuapp.com/ for intera
 
 10. Again, the user gets another transaction url as the second transaction (in the above example, it's https://explorer.testnet.near.org/transactions/tMvtmZifqkafzRYhAjgVsjGi4xcRS4Li7aQNbRbcVeo i.e., the second element of the "transactions" array in the RESPONSE body of the API).
 
+11. Finally, the requested "agg_value" (i.e., "agg_max" in the above example) is now rendered to the front-end as a pop-up alert box, and both the transaction urls are shown in the "Transactions" tab.
+
+
 ## View pending requests
 
 The oracle node is continually polling the state of the **oracle contract** to see the paginated request _summary_. This shows which accounts have requests pending and the total amount of pending requests:
@@ -280,8 +281,6 @@ You may use the previous two `get_balance` view methods to confirm that the fung
 
 The client is responsible for making sure there is enough allowance for fungible token transfers. It may be advised to add a cushion in addition to expected fungible token transfers as duplicate requests will also decrease allowance.
 
-**Scenario**: a client accidentally sends the same request or a request with the same nonce. The fungible token transfer occurs, decrementing the allowance on the fungible token contract. Then it is found that it's a duplicate, and the fungible tokens are returned. In this case, the allowance will not be increased as this can only be done by the client itself.
 
-One way to handle this is for the client to have logic to increase the allowance if it receives the response indicating a duplicate request has been sent. Another way might be to increase the allowance before each request. Again, this decision is up to the owner of the client contract.
 
-    11. Finally, the requested "agg_value" (i.e., "agg_max" in the above example) is now rendered to the front-end as a pop-up alert box, and both the transaction urls are shown in the "Transactions" tab.
+    
