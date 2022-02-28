@@ -153,24 +153,7 @@ near view near-link.$NEAR_ACCT get_allowance '{"owner_id": "client.'$NEAR_ACCT'"
 
 ## Make a request
 
-Let's make a request to a Chainlink node and request an ETH-USD price:
-
-- Packed JSON arguments: `{"get":"https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD","path":"USD","times":100}`
-- Base64 encoded arguments: `eyJnZXQiOiJodHRwczovL21pbi1hcGkuY3J5cHRvY29tcGFyZS5jb20vZGF0YS9wcmljZT9mc3ltPUVUSCZ0c3ltcz1VU0QiLCJwYXRoIjoiVVNEIiwidGltZXMiOjEwMH0=`
-
-We'll show two ways to have the client contract send the oracle contract a request. First, we'll directly call the oracle contract using the key pair (i.e. keys) from the client contract.
-
-1. **Client contract** makes a direct request to **oracle contract** with payment of 10 NEAR LINK. We can do this because we have the key pair for the client contract.
-
-```bash
-near call oracle.$NEAR_ACCT request '{"payment": "10", "spec_id": "dW5pcXVlIHNwZWMgaWQ=", "callback_address": "client.'$NEAR_ACCT'", "callback_method": "token_price_callback", "nonce": "1", "data_version": "1", "data": "eyJnZXQiOiJodHRwczovL21pbi1hcGkuY3J5cHRvY29tcGFyZS5jb20vZGF0YS9wcmljZT9mc3ltPUVUSCZ0c3ltcz1VU0QiLCJwYXRoIjoiVVNEIiwidGltZXMiOjEwMH0="}' --accountId client.$NEAR_ACCT --gas 300000000000000
-```
-
-2. **Any NEAR account** calls the **client contract**, providing request arguments. Upon receiving this, the **client contract** sends a cross-contract call to the **oracle contract** to store the request. (Payment and other values are hardcoded here, the nonce is automatically incremented. This assumes that the **client contract** contract only wants to use one oracle contract.)
-
-```bash
-near call client.$NEAR_ACCT get_token_price '{"symbol": "eyJnZXQiOiJodHRwczovL21pbi1hcGkuY3J5cHRvY29tcGFyZS5jb20vZGF0YS9wcmljZT9mc3ltPUVUSCZ0c3ltcz1VU0QiLCJwYXRoIjoiVVNEIiwidGltZXMiOjEwMH0=", "spec_id": "dW5pcXVlIHNwZWMgaWQ="}' --accountId client.$NEAR_ACCT --gas 300000000000000
-```
+You can use the GUI running on http://contracts-shamba.herokuapp.com/ for interacting (sending and fulfilling requests) with the oracle node.
 
 ## View pending requests
 
@@ -182,103 +165,6 @@ near view oracle.$NEAR_ACCT get_requests_summary '{"max_num_accounts": "10"}'
 
 **Note**: aside from `get_requests_summary` there is also `get_requests_summary_from`. Since the [`TreeMap` data structure](https://docs.rs/near-sdk/1.0.0/near_sdk/collections/struct.TreeMap.html) is ordered, the former will list the first N (`max_num_accounts`). Usage of `get_requests_summary_from` is for paging, providing a window of results to return. Please see function details for parameters and usage.
 
-For folks who prefer to see a more low-level approach to hitting the RPC, here's the [curl](https://en.wikipedia.org/wiki/CURL) command performing the same query:
-
-```bash
-curl -d '{"jsonrpc": "2.0", "method": "query", "id": "chainlink", "params": {"request_type": "call_function", "finality": "final", "account_id": "oracle.'$NEAR_ACCT'", "method_name": "get_requests_summary", "args_base64": "eyJtYXhfbnVtX2FjY291bnRzIjogIjEwIn0="}}' -H 'Content-Type: application/json' https://rpc.testnet.near.org
-```
-
-The above will return something like:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "result": [
-      91,
-      123,
-      34,
-      97,
-      99,
-      99,
-      111,
-      117,
-      110,
-      116,
-      34,
-      58,
-      34,
-      99,
-      108,
-      105,
-      101,
-      110,
-      116,
-      46,
-      100,
-      101,
-      109,
-      111,
-      46,
-      116,
-      101,
-      115,
-      116,
-      110,
-      101,
-      116,
-      34,
-      44,
-      34,
-      116,
-      111,
-      116,
-      97,
-      108,
-      95,
-      114,
-      101,
-      113,
-      117,
-      101,
-      115,
-      116,
-      115,
-      34,
-      58,
-      49,
-      125,
-      93
-    ],
-    "logs": [],
-    "block_height": 10551293,
-    "block_hash": "Ljh67tYk5bGXPu9TamJNG4vHp18cEBDxebKHpEUeZEo"
-  },
-  "id": "chainlink"
-}
-```
-
-We'll outline a quick way to see the results if the machine has [Python installed](https://docs.python-guide.org/starting/install3/osx/). Copy the value of the innermost `result` key, which is an array of unsigned 8-bit integers.
-
-Open the Python REPL with the command `python` and see the prompt with `>>>`.
-
-Enter the below replacing BYTE_ARRAY with the the innermost result value (including the square brackets):
-
-```python
-res = BYTE_ARRAY
-```
-
-then:
-
-```python
-''.join(chr(x) for x in res)
-```
-
-and python will print something like:
-
-```text
-'[{"account":"client.demo.testnet","total_requests":1}]'
-```
 
 The previous command (calling the method `get_requests_summary`) is useful if there has been significant scaling from many client accounts/contracts. To see the individual requests for a particular user, use the following command:
 
@@ -286,22 +172,6 @@ The previous command (calling the method `get_requests_summary`) is useful if th
 near view oracle.$NEAR_ACCT get_requests '{"account": "client.'$NEAR_ACCT'", "max_requests": "10"}'
 ```
 
-The **oracle node** uses the passed request arguments to fetch the price of (for example) Basic Attention Token (BAT) and finds it is at \$0.19 per token.
-The data `0.19` as a `Vec<u8>` is `MTkuMQ==`
-
-There's a third method to get all the requests, ordered by account name and nonce, where a specified maximum number of results is provided.
-
-```bash
-near view oracle.$NEAR_ACCT get_all_requests '{"max_num_accounts": "100", "max_requests": "100"}'
-```
-
-## Fulfill the request
-
-**Oracle Node** uses its NEAR account keys to fulfill the request:
-
-```bash
-near call oracle.$NEAR_ACCT fulfill_request '{"account": "client.'$NEAR_ACCT'", "nonce": "0", "data": "MTkuMQ=="}' --accountId oracle-node.$NEAR_ACCT --gas 300000000000000
-```
 
 (Optional) Check the **client contract** for the values it has saved:
 
